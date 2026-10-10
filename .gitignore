@@ -1,4 +1,16 @@
+# Logs & caches
+*.log
 __pycache__/
 *.pyc
 .system_generated/
 *.tmp
+
+# Sensitive data & credentials
+*.token
+*.auth
+*.session
+accounts.json
+
+# Local artifacts
+/artifacts/*.mp4
+/artifacts/*.mov
