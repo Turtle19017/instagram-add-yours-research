@@ -1,9 +1,9 @@
 Java.perform(function() {
-    console.log("[*] Robust, crash-free transform targeting STORIES_TEMPLATE_GALLERY_OVERLAY...");
+    console.log("[*] Phase 6B: Safe test_drawable_transform.js (HC7/HC8 on Main Thread only)...");
 
-    var ActivityThread = Java.use("android.app.ActivityThread");
     var Handler = Java.use("android.os.Handler");
     var Looper = Java.use("android.os.Looper");
+    var mainHandler = Handler.$new(Looper.getMainLooper());
 
     Java.choose("com.instagram.ui.widget.interactive.InteractiveDrawableContainer", {
         onMatch: function(container) {
@@ -15,79 +15,93 @@ Java.perform(function() {
                 return;
             }
 
-            var list = Java.cast(fieldA17.get(container), Java.use("java.util.List"));
+            var list = null;
+            try {
+                list = Java.cast(fieldA17.get(container), Java.use("java.util.List"));
+            } catch(e) {
+                return;
+            }
             if (!list || list.size() === 0) return;
 
-            // Search through controllers to find the exact one holding STORIES_TEMPLATE_GALLERY_OVERLAY
+            var Hj5Cls = Java.use("X.0Hj5");
+            var found = false;
+
             for (var i = 0; i < list.size(); i++) {
-                var item = list.get(i);
-                if (!item) continue;
-
-                var hj = Java.cast(item, Java.use("X.0Hj5"));
-                var drawable = hj.BWj();
-                if (!drawable) continue;
-
-                // Check if this drawable wraps STORIES_TEMPLATE_GALLERY_OVERLAY
-                var isTemplate = false;
                 try {
-                    var fA0A = drawable.getClass().getDeclaredField("A0A");
-                    fA0A.setAccessible(true);
-                    var listA0A = Java.cast(fA0A.get(drawable), Java.use("java.util.List"));
-                    if (listA0A.size() > 0) {
-                        var hgi = listA0A.get(0);
-                        var fA0J = hgi.getClass().getDeclaredField("A0J");
-                        fA0J.setAccessible(true);
-                        var tag = "" + fA0J.get(hgi);
-                        if (tag.indexOf("STORIES_TEMPLATE_GALLERY_OVERLAY") !== -1) {
-                            isTemplate = true;
-                        }
-                    }
-                } catch(e) {}
+                    var item = list.get(i);
+                    if (!item) continue;
 
-                if (isTemplate) {
-                    console.log("[+] Found target Template controller at index #" + i);
-                    var origX = hj.CzU();
-                    var origY = hj.CzV();
-                    console.log("    Original position: (" + origX + ", " + origY + ")");
+                    var hj = Java.cast(item, Hj5Cls);
+                    var drawable = hj.BWj();
+                    if (!drawable) continue;
 
-                    var targetX = origX;
-                    var targetY = origY - 180.0; // Shift up cleanly
-
-                    // Execute safely on main looper
-                    var mainHandler = Handler.$new(Looper.getMainLooper());
-                    var Runnable = Java.use("java.lang.Runnable");
-                    var SafeTransformRunnable = Java.registerClass({
-                        name: "com.research.SafeTransformRunnable_" + Date.now(),
-                        implements: [Runnable],
-                        methods: {
-                            run: function() {
-                                try {
-                                    hj.HC7(targetX);
-                                    hj.HC8(targetY);
-                                    
-                                    // Update translation fields directly without invoking dangerous native A05
-                                    var fA01 = hj.getClass().getDeclaredField("A01"); fA01.setAccessible(true);
-                                    var fA02 = hj.getClass().getDeclaredField("A02"); fA02.setAccessible(true);
-                                    fA01.set(hj, Java.use("java.lang.Float").valueOf(0.0));
-                                    fA02.set(hj, Java.use("java.lang.Float").valueOf(targetY - origY));
-
-                                    container.invalidate();
-                                    container.requestLayout();
-                                    console.log("[+] Safe transform applied: (" + targetX + ", " + targetY + ")");
-                                } catch(err) {
-                                    console.log("[-] Error during safe transform: " + err);
-                                }
+                    // Verify whether this wraps STORIES_TEMPLATE_GALLERY_OVERLAY
+                    var isTemplate = false;
+                    try {
+                        var fA0A = drawable.getClass().getDeclaredField("A0A");
+                        fA0A.setAccessible(true);
+                        var listA0A = Java.cast(fA0A.get(drawable), Java.use("java.util.List"));
+                        if (listA0A && listA0A.size() > 0) {
+                            var hgi = listA0A.get(0);
+                            var fA0J = hgi.getClass().getDeclaredField("A0J");
+                            fA0J.setAccessible(true);
+                            var tag = "" + fA0J.get(hgi);
+                            if (tag.indexOf("STORIES_TEMPLATE_GALLERY_OVERLAY") !== -1) {
+                                isTemplate = true;
                             }
                         }
-                    });
+                    } catch(e) {}
 
-                    mainHandler.post(SafeTransformRunnable.$new());
-                    break;
+                    if (isTemplate) {
+                        found = true;
+                        var origX = hj.CzU();
+                        var origY = hj.CzV();
+                        console.log("[+] Identified target Template controller at index #" + i);
+                        console.log("    Original translation: X=" + origX + ", Y=" + origY);
+
+                        // Move up by -160 pixels along Y into header region
+                        var targetX = origX;
+                        var targetY = origY - 160.0;
+
+                        // Execute ONLY HC7 and HC8 directly on Main Thread via container.post
+                        var targetHj = hj;
+                        var targetContainer = container;
+
+                        var RunnableCls = Java.use("java.lang.Runnable");
+                        var task = Java.registerClass({
+                            name: "com.research.TransformTask_" + Math.floor(Math.random() * 1000000),
+                            implements: [RunnableCls],
+                            methods: {
+                                run: function() {
+                                    try {
+                                        // Pure HC7 / HC8 call, NO field modification of A01/A02, NO A05 call
+                                        targetHj.HC7(targetX);
+                                        targetHj.HC8(targetY);
+                                        targetContainer.invalidate();
+                                        targetContainer.requestLayout();
+                                        console.log("[+] Applied HC7(" + targetX + ") & HC8(" + targetY + ") successfully on Main Thread.");
+                                    } catch(err) {
+                                        console.log("[-] Error inside run: " + err);
+                                    }
+                                }
+                            }
+                        });
+
+                        mainHandler.post(task.$new());
+                        break;
+                    }
+                } catch(itemErr) {
+                    // Safe catch per item ensures loop continues cleanly
+                    continue;
                 }
+            }
+
+            if (!found) {
+                console.log("[-] Template layer not found in this container instance.");
             }
         },
         onComplete: function() {
-            console.log("[*] Search completed.");
+            console.log("[*] Enumeration finished.");
         }
     });
 });
